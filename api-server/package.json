@@ -1,5 +1,5 @@
 "scripts": {
-  "build": "node ./build.mjs",
+  "build": "node ./build.mjs"
   "start": "node --enable-source-maps ./dist/index.mjs"
 }
 ``
