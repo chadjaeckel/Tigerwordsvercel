@@ -1,32 +1,30 @@
-import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
 
-// Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
-globalThis.require = createRequire(import.meta.url);
-
-const artifactDir = path.dirname(fileURLToPath(import.meta.url));
+// Railway reliably sets CWD to the service root
+const rootDir = process.cwd();
 
 async function buildAll() {
-  const distDir = path.resolve(artifactDir, "dist");
+  const distDir = path.resolve(rootDir, "dist");
+
+  // Clean output
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    entryPoints: [path.resolve(rootDir, "src/index.ts")],
     platform: "node",
     bundle: true,
     format: "esm",
-    outdir: distDir,
-    outExtension: { ".js": ".mjs" },
+
+    // ✅ Single explicit output file (Railway-friendly)
+    outfile: path.resolve(distDir, "index.mjs"),
+
     logLevel: "info",
-    // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
-    // Some of the packages below may not be imported or installed, but we're adding them in case they are in the future.
-    // Examples of unbundleable packages:
-    // - uses native modules and loads them dynamically (e.g. sharp)
-    // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
+    sourcemap: "linked",
+
+    // Native / dynamic modules that must not be bundled
     external: [
       "*.node",
       "sharp",
@@ -37,90 +35,46 @@ async function buildAll() {
       "argon2",
       "fsevents",
       "re2",
-      "farmhash",
-      "xxhash-addon",
       "bufferutil",
       "utf-8-validate",
-      "ssh2",
-      "cpu-features",
-      "dtrace-provider",
-      "isolated-vm",
-      "lightningcss",
       "pg-native",
-      "oracledb",
-      "mongodb-client-encryption",
-      "nodemailer",
-      "handlebars",
-      "knex",
-      "typeorm",
-      "protobufjs",
-      "onnxruntime-node",
-      "@tensorflow/*",
       "@prisma/client",
-      "@mikro-orm/*",
-      "@grpc/*",
-      "@swc/*",
       "@aws-sdk/*",
-      "@azure/*",
-      "@opentelemetry/*",
       "@google-cloud/*",
-      "@google/*",
-      "googleapis",
       "firebase-admin",
-      "@parcel/watcher",
       "@sentry/profiling-node",
-      "@tree-sitter/*",
-      "aws-sdk",
-      "classic-level",
-      "dd-trace",
-      "ffi-napi",
-      "grpc",
-      "hiredis",
-      "kerberos",
-      "leveldown",
-      "miniflare",
-      "mysql2",
-      "newrelic",
-      "odbc",
-      "piscina",
-      "realm",
-      "ref-napi",
-      "rocksdb",
-      "sass-embedded",
-      "sequelize",
-      "serialport",
-      "snappy",
-      "tinypool",
-      "usb",
-      "workerd",
-      "wrangler",
-      "zeromq",
-      "zeromq-prebuilt",
       "playwright",
       "puppeteer",
-      "puppeteer-core",
-      "electron",
+      "electron"
     ],
-    sourcemap: "linked",
-    plugins: [
-      // pino relies on workers to handle logging, instead of externalizing it we use a plugin to handle it
-      esbuildPluginPino({ transports: ["pino-pretty"] })
-    ],
-    // Make sure packages that are cjs only (e.g. express) but are bundled continue to work in our esm output file
-    banner: {
-      js: `import { createRequire as __bannerCrReq } from 'node:module';
-import __bannerPath from 'node:path';
-import __bannerUrl from 'node:url';
 
-globalThis.require = __bannerCrReq(import.meta.url);
-globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
-globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
-    `,
-    },
+    plugins: [
+      esbuildPluginPino({
+        transports: ["pino-pretty"]
+      })
+    ],
+
+    // ✅ Correct ESM globals for Node + Express + Socket.IO
+    banner: {
+      js: `
+        import { createRequire as __require } from 'node:module';
+        import { fileURLToPath as __fileURLToPath } from 'node:url';
+        import { dirname as __dirnameFn } from 'node:path';
+
+        const require = __require(import.meta.url);
+        const __filename = __fileURLToPath(import.meta.url);
+        const __dirname = __dirnameFn(__filename);
+
+        globalThis.require = require;
+        globalThis.__filename = __filename;
+        globalThis.__dirname = __dirname;
+      `
+    }
   });
 }
 
 buildAll().catch((err) => {
-  console.error(err);
+  console.error("Build failed:", err);
   process.exit(1);
 });
+``
