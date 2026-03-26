@@ -1,4 +1,7 @@
 {
+  "packageManager": "pnpm@9.15.0"
+}
+{
   "name": "@workspace/api-server",
   "version": "0.0.0",
   "private": true,
