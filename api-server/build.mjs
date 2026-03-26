@@ -1,6 +1,5 @@
 import path from "node:path";
 import { build as esbuild } from "esbuild";
-import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
 
 // Railway reliably sets CWD to the service root
@@ -48,11 +47,6 @@ async function buildAll() {
       "electron"
     ],
 
-    plugins: [
-      esbuildPluginPino({
-        transports: ["pino-pretty"]
-      })
-    ],
 
     // ✅ Correct ESM globals for Node + Express + Socket.IO
     banner: {
