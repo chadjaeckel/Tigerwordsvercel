@@ -2,10 +2,15 @@
 nixPkgs = ["nodejs_20", "npm", "libatomic"]
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps"]
+cmds = [
+  "node -v",
+  "rm -rf node_modules ~/.cache/esbuild package-lock.json",
+  "npm install --legacy-peer-deps"
+]
 
 [phases.build]
 cmds = ["npm run build"]
 
 [start]
 cmd = "npm run start"
+
